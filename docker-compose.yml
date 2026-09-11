@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: supply-prescript-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: supply_prescript
+      POSTGRES_USER: supply_user
+      POSTGRES_PASSWORD: supply_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supply_user -d supply_prescript"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: supply-prescript-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://supply_user:supply_password@postgres:5432/supply_prescript
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
