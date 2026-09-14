@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.predictions import router as prediction_router
-
-
+from app.api.recommendations import router as recommendation_router
+from app.api.decision import router as decision_router
 app = FastAPI(
     title="Supply Prescript API",
     description="Closed-Loop Prescriptive Analytics Platform for Supply Chain Risk",
@@ -21,8 +21,8 @@ app.add_middleware(
 
 
 app.include_router(prediction_router)
-
-
+app.include_router(recommendation_router)
+app.include_router(decision_router)
 @app.get("/api/health", tags=["System"])
 def health_check():
     return {
