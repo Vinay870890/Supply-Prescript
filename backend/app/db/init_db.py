@@ -1,6 +1,7 @@
 from app.db.session import Base, engine
 from app.models.core import Shipment
 from app.models.decision import Decision
+from app.models.outcome import DecisionOutcome
 
 
 def init_db():
