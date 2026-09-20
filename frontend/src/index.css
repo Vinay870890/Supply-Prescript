@@ -133,3 +133,156 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== MODEL REGISTRY ===== */
+.model-summary-card {
+  margin-bottom: 15px;
+}
+
+.model-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+}
+
+.model-summary-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.model-summary-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #4f46e5;
+  background: #eef0ff;
+}
+
+.model-summary-main span {
+  display: block;
+  color: #98a2b3;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.model-summary-main strong {
+  display: block;
+  margin-top: 4px;
+  color: #101828;
+  font-size: 17px;
+}
+
+.model-summary-main small {
+  display: block;
+  margin-top: 3px;
+  color: #667085;
+  font-size: 9px;
+}
+
+.model-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #16733a;
+  background: #ecfdf3;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.model-active-pill i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.model-table-card {
+  overflow: hidden;
+}
+
+.model-table {
+  margin-top: 0;
+}
+
+.model-table th:first-child,
+.model-table td:first-child {
+  width: 45px;
+  text-align: center;
+}
+
+.model-index {
+  color: #98a2b3;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.model-version {
+  color: #344054;
+  font-weight: 800;
+}
+
+.model-type {
+  color: #667085;
+}
+
+.model-status {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.model-status.active {
+  color: #16733a;
+  background: #ecfdf3;
+}
+
+.model-status.archived {
+  color: #667085;
+  background: #f2f4f7;
+}
+
+.model-status.candidate {
+  color: #b54708;
+  background: #fff7ed;
+}
+
+.model-metric {
+  color: #344054;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-metric strong {
+  font-weight: 800;
+}
+
+.model-description {
+  max-width: 300px;
+  overflow: hidden;
+  color: #667085;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 800px) {
+  .model-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .model-table {
+    min-width: 850px;
+  }
+}
+

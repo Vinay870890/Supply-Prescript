@@ -1,0 +1,162 @@
+[
+  {
+    "shipment_id": 80616,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 17068.85,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 83009,
+    "actual_delay_days": -22.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 20994.62,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 11914,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 11898.8,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 530,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 13507.92,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 11524,
+    "actual_delay_days": 27.0,
+    "actual_delay_flag": 1,
+    "actual_cost_usd": 11339.5,
+    "outcome_status": "DELAYED",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 23664,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 10711.06,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 12690,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 1106.0,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 49063,
+    "actual_delay_days": -2.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 20602.3,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 83182,
+    "actual_delay_days": -14.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 4017.69,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 29281,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 44128.81,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 36431,
+    "actual_delay_days": 48.0,
+    "actual_delay_flag": 1,
+    "actual_cost_usd": 8527.45,
+    "outcome_status": "DELAYED",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 84289,
+    "actual_delay_days": 29.0,
+    "actual_delay_flag": 1,
+    "actual_cost_usd": 13508.98,
+    "outcome_status": "DELAYED",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 12443,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 32483.5,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 41910,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 5626.76,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 52093,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 17074.8,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 12786,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 24594.29,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 12973,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 304.62,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 12570,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 16864.58,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 64367,
+    "actual_delay_days": 0.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 1076.15,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  },
+  {
+    "shipment_id": 60937,
+    "actual_delay_days": -6.0,
+    "actual_delay_flag": 0,
+    "actual_cost_usd": 14493.3,
+    "outcome_status": "ON_TIME",
+    "outcome_notes": "Actual historical outcome from Kaggle shipment dataset."
+  }
+]

@@ -1,76 +1,51 @@
-from pathlib import Path
-
-import joblib
 import pandas as pd
 import shap
 
-
-BASE_DIR = Path(__file__).resolve().parents[3]
-MODEL_FILE = BASE_DIR / "models" / "delay_model_v2.joblib"
+from app.ml.model_loader import load_active_model
 
 
 class ShipmentExplainer:
     def __init__(self):
-        if not MODEL_FILE.exists():
-            raise FileNotFoundError(f"Model not found: {MODEL_FILE}")
-
-        self.model = joblib.load(MODEL_FILE)
+        self.model, self.model_record = load_active_model()
 
         self.preprocessor = self.model.named_steps["preprocessor"]
         self.classifier = self.model.named_steps["model"]
 
         self.explainer = shap.TreeExplainer(self.classifier)
 
-    def _clean_feature_name(self, feature_name: str) -> str:
-        """
-        Convert sklearn transformed feature names into
-        human-readable feature names.
-        """
-
-        name = feature_name
-
-        if name.startswith("num__"):
-            name = name.replace("num__", "", 1)
-
-        elif name.startswith("cat__"):
-            name = name.replace("cat__", "", 1)
-
-        return name
+    def _clean_feature_name(self, name: str) -> str:
+        return (
+            name.replace("num__", "")
+            .replace("cat__", "")
+            .replace("_", " ")
+        )
 
     def explain(self, features: dict, top_n: int = 5) -> dict:
         data = pd.DataFrame([features])
 
-        transformed = self.preprocessor.transform(data)
+        transformed_data = self.preprocessor.transform(data)
 
-        if hasattr(transformed, "toarray"):
-            transformed = transformed.toarray()
+        shap_values = self.explainer.shap_values(transformed_data)
 
-        shap_values = self.explainer.shap_values(transformed)
-
-        values = shap_values[0]
+        if isinstance(shap_values, list):
+            values = shap_values[1][0]
+        else:
+            values = shap_values[0]
 
         feature_names = self.preprocessor.get_feature_names_out()
 
-        explanations = []
+        contributions = []
 
         for name, value in zip(feature_names, values):
+            value = float(value)
 
-            # Ignore inactive one-hot categories.
-            # A categorical feature is only relevant when
-            # its encoded value is actually 1.
-            if name.startswith("cat__"):
+            if abs(value) < 1e-9:
+                continue
 
-                transformed_index = list(feature_names).index(name)
-
-                if transformed[0][transformed_index] == 0:
-                    continue
-
-            clean_name = self._clean_feature_name(name)
-
-            explanations.append(
+            contributions.append(
                 {
-                    "feature": clean_name,
-                    "impact": round(float(value), 6),
+                    "feature": self._clean_feature_name(name),
+                    "impact": round(value, 6),
                     "direction": (
                         "increases_delay_risk"
                         if value > 0
@@ -79,13 +54,14 @@ class ShipmentExplainer:
                 }
             )
 
-        explanations.sort(
-            key=lambda x: abs(x["impact"]),
+        contributions.sort(
+            key=lambda item: abs(item["impact"]),
             reverse=True,
         )
 
         return {
-            "top_features": explanations[:top_n],
+            "model_version": self.model_record.version,
+            "top_features": contributions[:top_n],
         }
 
 

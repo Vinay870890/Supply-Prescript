@@ -2,12 +2,26 @@ from pydantic import BaseModel, Field
 
 
 class ShipmentPredictionRequest(BaseModel):
+    shipment_id: int = Field(gt=0)
     country: str
-    shipment_mode: str = Field(alias="shipment mode")
-    product_group: str = Field(alias="product group")
-    sub_classification: str = Field(alias="sub classification")
+
+    shipment_mode: str = Field(
+        alias="shipment mode"
+    )
+
+    product_group: str = Field(
+        alias="product group"
+    )
+
+    sub_classification: str = Field(
+        alias="sub classification"
+    )
+
     vendor: str
-    manufacturing_site: str = Field(alias="manufacturing site")
+
+    manufacturing_site: str = Field(
+        alias="manufacturing site"
+    )
 
     line_item_quantity: float = Field(
         alias="line item quantity",
@@ -45,6 +59,7 @@ class ShipmentPredictionRequest(BaseModel):
     )
 
     scheduled_year: int
+
     scheduled_month: int = Field(
         ge=1,
         le=12,
