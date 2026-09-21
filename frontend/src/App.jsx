@@ -147,6 +147,113 @@ function App() {
     }));
   }, [history]);
 
+  // Analytics uses the clean real-data batch created for validation:
+  // decision IDs 45-64. Dashboard/Decisions/Outcomes continue to use
+  // the complete history returned by the backend.
+  const cleanBatchHistory = useMemo(
+    () =>
+      history
+        .filter(
+          (item) =>
+            Number(item.decision_id) >= 45 &&
+            Number(item.decision_id) <= 64
+        )
+        .sort(
+          (a, b) =>
+            Number(a.decision_id) - Number(b.decision_id)
+        ),
+    [history]
+  );
+
+  const cleanBatchPerformanceData = useMemo(
+    () =>
+      cleanBatchHistory.map((item) => ({
+        name: `#${item.decision_id}`,
+        predicted: Number(
+          (Number(item.predicted_delay_probability) * 100).toFixed(2)
+        ),
+        actual: item.actual_delay_flag ? 100 : 0,
+        shipment: item.shipment_id,
+        outcome: item.outcome_status,
+      })),
+    [cleanBatchHistory]
+  );
+    const cleanBatchActionData = useMemo(() => {
+    const counts = {};
+
+    cleanBatchHistory.forEach((item) => {
+      counts[item.selected_action] =
+        (counts[item.selected_action] || 0) + 1;
+    });
+
+    return Object.entries(counts).map(([name, value]) => ({
+      name,
+      value,
+    }));
+  }, [cleanBatchHistory]);
+
+  const cleanBatchSummary = useMemo(() => {
+    const evaluated = cleanBatchHistory.length;
+
+    const correctPredictions = cleanBatchHistory.filter(
+      (item) => item.prediction_correct === true
+    ).length;
+
+    const successfulDecisions = cleanBatchHistory.filter(
+      (item) => item.decision_success === true
+    ).length;
+
+    const onTimeShipments = cleanBatchHistory.filter(
+      (item) => item.actual_delay_flag === 0
+    ).length;
+
+    const delayedShipments = cleanBatchHistory.filter(
+      (item) => item.actual_delay_flag === 1
+    ).length;
+
+    const totalSavings = cleanBatchHistory.reduce(
+      (sum, item) =>
+        sum + Number(item.estimated_savings_usd || 0),
+      0
+    );
+
+    const averageCostVariance =
+      evaluated > 0
+        ? cleanBatchHistory.reduce(
+            (sum, item) =>
+              sum + Number(item.cost_variance_usd || 0),
+            0
+          ) / evaluated
+        : 0;
+
+    const averageRoi =
+      evaluated > 0
+        ? cleanBatchHistory.reduce(
+            (sum, item) =>
+              sum + Number(item.roi_percent || 0),
+            0
+          ) / evaluated
+        : 0;
+
+    return {
+      outcomes_recorded: evaluated,
+      correct_delay_predictions: correctPredictions,
+      prediction_accuracy:
+        evaluated > 0
+          ? (correctPredictions / evaluated) * 100
+          : 0,
+      successful_decisions: successfulDecisions,
+      decision_success_rate:
+        evaluated > 0
+          ? (successfulDecisions / evaluated) * 100
+          : 0,
+      on_time_shipments: onTimeShipments,
+      delayed_shipments: delayedShipments,
+      average_cost_variance_usd: averageCostVariance,
+      total_estimated_savings_usd: totalSavings,
+      average_roi_percent: averageRoi,
+    };
+  }, [cleanBatchHistory]);
   const performanceData = history.map((item) => ({
     name: `#${item.decision_id}`,
     predicted: Number(
@@ -194,10 +301,10 @@ function App() {
       case "Analytics":
         return (
           <AnalyticsPage
-            summary={summary}
-            history={history}
-            actionData={actionData}
-            performanceData={performanceData}
+            summary={cleanBatchSummary}
+            history={cleanBatchHistory}
+            actionData={cleanBatchActionData}
+            performanceData={cleanBatchPerformanceData}
           />
         );
 
@@ -1194,24 +1301,17 @@ function ChartPanel({
 }
 
 function RiskChart({ data }) {
-  const maxValue = Math.max(
-    ...data.flatMap((item) => [
-      Number(item.predicted || 0),
-      Number(item.actual || 0),
-    ]),
+  const maxPredicted = Math.max(
+    ...data.map((item) => Number(item.predicted || 0)),
     0
   );
 
   const yMax =
-    maxValue === 0
-      ? 100
-      : maxValue <= 5
-      ? 5
-      : maxValue <= 10
+    maxPredicted <= 10
       ? 10
-      : maxValue <= 25
+      : maxPredicted <= 25
       ? 25
-      : maxValue <= 50
+      : maxPredicted <= 50
       ? 50
       : 100;
 
@@ -1219,10 +1319,7 @@ function RiskChart({ data }) {
     <>
       <div className="chart-area">
         {data.length ? (
-          <ResponsiveContainer
-            width="100%"
-            height={270}
-          >
+          <ResponsiveContainer width="100%" height={270}>
             <AreaChart data={data}>
               <defs>
                 <linearGradient
@@ -1263,10 +1360,15 @@ function RiskChart({ data }) {
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${v}%`}
+                tickFormatter={(value) => `${value}%`}
               />
 
-              <Tooltip />
+              <Tooltip
+                formatter={(value, name) => [
+                  `${Number(value).toFixed(2)}%`,
+                  name,
+                ]}
+              />
 
               <Area
                 type="monotone"
@@ -1275,15 +1377,6 @@ function RiskChart({ data }) {
                 strokeWidth={2.5}
                 fill="url(#riskGradient)"
                 name="Predicted Risk"
-              />
-
-              <Area
-                type="monotone"
-                dataKey="actual"
-                stroke="#22c55e"
-                strokeWidth={2}
-                fill="transparent"
-                name="Actual Delay"
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -1296,11 +1389,6 @@ function RiskChart({ data }) {
         <div>
           <span className="legend-indicator indigo" />
           Predicted risk
-        </div>
-
-        <div>
-          <span className="legend-indicator green" />
-          Actual delay
         </div>
       </div>
     </>
@@ -1353,17 +1441,78 @@ function ActionChart({ data }) {
 }
 
 function OutcomeAccuracyChart({ history }) {
-  const data = history.map((x) => ({
-    name: `#${x.decision_id}`,
+  const data = history.map((item) => ({
+    name: `#${item.decision_id}`,
     predicted: Number(
-      (x.predicted_delay_probability * 100).toFixed(2)
+      (Number(item.predicted_delay_probability) * 100).toFixed(2)
     ),
-    actual: x.actual_delay_flag ? 100 : 0,
+    actual: item.actual_delay_flag === 1 ? 1 : 0,
+    actualLabel:
+      item.actual_delay_flag === 1 ? "DELAYED" : "ON_TIME",
   }));
 
-  return <RiskChart data={data} />;
-}
+  return (
+    <div className="chart-area">
+      {data.length ? (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data}>
+            <CartesianGrid
+              stroke="#eef0f4"
+              vertical={false}
+            />
 
+            <XAxis
+              dataKey="name"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11 }}
+            />
+
+            <YAxis
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11 }}
+              tickFormatter={(value) => `${value}%`}
+            />
+
+            <Tooltip
+              formatter={(value, name) => {
+                if (name === "Predicted Risk") {
+                  return [
+                    `${Number(value).toFixed(2)}%`,
+                    name,
+                  ];
+                }
+
+                return [
+                  value === 1 ? "DELAYED" : "ON TIME",
+                  "Actual Outcome",
+                ];
+              }}
+            />
+
+            <Bar
+              dataKey="predicted"
+              fill="#6366f1"
+              radius={[6, 6, 0, 0]}
+              name="Predicted Risk"
+            />
+
+            <Bar
+              dataKey="actual"
+              fill="#22c55e"
+              radius={[6, 6, 0, 0]}
+              name="Actual Outcome"
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <EmptyState text="No evaluation data available" />
+      )}
+    </div>
+  );
+}
 function OutcomePanel({
   summary,
   outcomeData,
@@ -1423,7 +1572,6 @@ function OutcomePanel({
     </div>
   );
 }
-
 function SystemPanel({ health }) {
   return (
     <div className="card">
