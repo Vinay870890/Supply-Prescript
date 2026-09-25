@@ -16,6 +16,7 @@ from app.api.evaluation_history import (
     router as evaluation_history_router,
 )
 from app.api.models import router as model_router
+from app.api.shipments import router as shipments_router
 app = FastAPI(
     title="Supply Prescript API",
     description="Closed-Loop Prescriptive Analytics Platform for Supply Chain Risk",
@@ -47,6 +48,7 @@ app.include_router(
     evaluation_history_router
 )
 app.include_router(model_router)
+app.include_router(shipments_router)
 @app.get("/api/health", tags=["System"])
 def health_check():
     return {

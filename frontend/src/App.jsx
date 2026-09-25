@@ -6,10 +6,11 @@ import {
   BarChart3,
   CheckCircle2,
   ChevronRight,
-  Database,
   CircleDollarSign,
   Clock3,
+  Database,
   LayoutDashboard,
+  Package,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -281,6 +282,9 @@ function App() {
 
   const renderPage = () => {
     switch (activePage) {
+      case "Shipments":
+        return <ShipmentExplorer />;
+
       case "Decisions":
         return (
           <DecisionsPage
@@ -375,6 +379,12 @@ function App() {
           <NavButton
             name="Dashboard"
             icon={<LayoutDashboard size={17} />}
+            active={activePage}
+            setActive={setActivePage}
+          />
+          <NavButton
+            name="Shipments"
+            icon={<Package size={17} />}
             active={activePage}
             setActive={setActivePage}
           />
@@ -1867,5 +1877,396 @@ function EmptyState({ text }) {
     </div>
   );
 }
+function ShipmentExplorer() {
+  const [shipments, setShipments] = useState([]);
+  const [search, setSearch] = useState("");
+  const [shipmentMode, setShipmentMode] = useState("");
+  const [loadingShipments, setLoadingShipments] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedShipment, setSelectedShipment] = useState(null);
 
+  const fetchShipments = async () => {
+    try {
+      setLoadingShipments(true);
+      setError("");
+
+      const params = new URLSearchParams({
+        limit: "50",
+        offset: "0",
+      });
+
+      if (search.trim()) {
+        params.append("search", search.trim());
+      }
+
+      if (shipmentMode) {
+        params.append("shipment_mode", shipmentMode);
+      }
+
+      const response = await fetch(
+        `${API_BASE}/shipments?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch shipments");
+      }
+
+      const data = await response.json();
+      setShipments(data.results || []);
+    } catch (err) {
+      setError(err.message || "Unable to load shipments");
+    } finally {
+      setLoadingShipments(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShipments();
+  }, [search, shipmentMode]);
+
+  if (selectedShipment) {
+    return (
+      <ShipmentDetail
+        shipment={selectedShipment}
+        onBack={() => setSelectedShipment(null)}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <PageHeading
+        title="Shipment Intelligence"
+        subtitle="Explore shipment-level operational and risk data"
+      />
+
+      <div className="card">
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            marginBottom: "20px",
+            flexWrap: "wrap",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Search shipment ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #d1d5db",
+              borderRadius: "8px",
+              minWidth: "240px",
+            }}
+          />
+
+          <select
+            value={shipmentMode}
+            onChange={(e) => setShipmentMode(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #d1d5db",
+              borderRadius: "8px",
+            }}
+          >
+            <option value="">All Shipment Modes</option>
+            <option value="Air">Air</option>
+            <option value="Air Charter">Air Charter</option>
+            <option value="Ocean">Ocean</option>
+            <option value="Truck">Truck</option>
+          </select>
+
+          <button
+            onClick={fetchShipments}
+            className="secondary-button"
+            type="button"
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        </div>
+
+        {loadingShipments && (
+          <div className="empty-state">
+            Loading shipments...
+          </div>
+        )}
+
+        {error && (
+          <div className="empty-state">
+            <AlertTriangle size={18} />
+            {error}
+          </div>
+        )}
+
+        {!loadingShipments && !error && (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Shipment ID</th>
+                  <th>Country</th>
+                  <th>Mode</th>
+                  <th>Product Group</th>
+                  <th>Vendor</th>
+                  <th>Value</th>
+                  <th>Risk</th>
+                  <th>Delay</th>
+                  <th></th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {shipments.map((shipment) => (
+                  <tr key={shipment.id}>
+                    <td>
+                      <strong>{shipment.id}</strong>
+                    </td>
+
+                    <td>{shipment.country || "—"}</td>
+
+                    <td>{shipment["shipment mode"] || "—"}</td>
+
+                    <td>{shipment["product group"] || "—"}</td>
+
+                    <td>{shipment.vendor || "—"}</td>
+
+                    <td>
+                      $
+                      {Number(
+                        shipment["line item value"] || 0
+                      ).toLocaleString()}
+                    </td>
+
+                    <td>
+                      {Number(
+                        shipment.transport_risk_score || 0
+                      ).toFixed(2)}
+                    </td>
+
+                    <td>
+                      {shipment.delay_flag === 1 ? (
+                        <span>Delayed</span>
+                      ) : (
+                        <span>On Time</span>
+                      )}
+                    </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShipment(shipment)}
+                        className="secondary-button"
+                      >
+                        View
+                        <ChevronRight size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {shipments.length === 0 && (
+                  <tr>
+                    <td colSpan="9">
+                      <div className="empty-state">
+                        No shipments found.
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function ShipmentDetail({ shipment, onBack }) {
+  const formatNumber = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "—";
+    }
+
+    return Number(value).toLocaleString();
+  };
+
+  const formatMoney = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "—";
+    }
+
+    return `$${Number(value).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  return (
+    <div>
+      <PageHeading
+        title={`Shipment #${shipment.id}`}
+        subtitle="Shipment-level operational intelligence"
+      />
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="secondary-button"
+        style={{ marginBottom: "20px" }}
+      >
+        ← Back to Shipments
+      </button>
+
+      <div className="detail-grid">
+        <div className="card">
+          <CardHeader
+            icon={<Truck size={18} />}
+            title="Shipment Overview"
+          />
+
+          <div className="detail-list">
+            <div>
+              <span>Shipment ID</span>
+              <strong>{shipment.id}</strong>
+            </div>
+
+            <div>
+              <span>Country</span>
+              <strong>{shipment.country || "—"}</strong>
+            </div>
+
+            <div>
+              <span>Shipment Mode</span>
+              <strong>
+                {shipment["shipment mode"] || "—"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Product Group</span>
+              <strong>
+                {shipment["product group"] || "—"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Vendor</span>
+              <strong>{shipment.vendor || "—"}</strong>
+            </div>
+
+            <div>
+              <span>Manufacturing Site</span>
+              <strong>
+                {shipment["manufacturing site"] || "—"}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <CardHeader
+            icon={<CircleDollarSign size={18} />}
+            title="Financial Profile"
+          />
+
+          <div className="detail-list">
+            <div>
+              <span>Line Item Value</span>
+              <strong>
+                {formatMoney(shipment["line item value"])}
+              </strong>
+            </div>
+
+            <div>
+              <span>Line Item Quantity</span>
+              <strong>
+                {formatNumber(shipment["line item quantity"])}
+              </strong>
+            </div>
+
+            <div>
+              <span>Freight Cost</span>
+              <strong>
+                {formatMoney(shipment["freight cost (usd)"])}
+              </strong>
+            </div>
+
+            <div>
+              <span>Insurance</span>
+              <strong>
+                {formatMoney(
+                  shipment["line item insurance (usd)"]
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>Weight</span>
+              <strong>
+                {formatNumber(shipment["weight (kilograms)"])} kg
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <CardHeader
+            icon={<ShieldCheck size={18} />}
+            title="Risk Profile"
+          />
+
+          <div className="detail-list">
+            <div>
+              <span>Transport Risk Score</span>
+              <strong>
+                {Number(
+                  shipment.transport_risk_score || 0
+                ).toFixed(2)}
+              </strong>
+            </div>
+
+            <div>
+              <span>Complexity Score</span>
+              <strong>
+                {Number(
+                  shipment.shipment_complexity_score || 0
+                ).toFixed(2)}
+              </strong>
+            </div>
+
+            <div>
+              <span>High Value Shipment</span>
+              <strong>
+                {shipment.high_value_shipment === 1
+                  ? "Yes"
+                  : "No"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Actual Delay</span>
+              <strong>
+                {shipment.actual_delay_days ?? 0} days
+              </strong>
+            </div>
+
+            <div>
+              <span>Actual Outcome</span>
+              <strong>
+                {shipment.delay_flag === 1
+                  ? "Delayed"
+                  : "On Time"}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default App;
