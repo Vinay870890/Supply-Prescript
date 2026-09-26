@@ -2087,6 +2087,9 @@ function ShipmentExplorer() {
 
 
 function ShipmentDetail({ shipment, onBack }) {
+  const [prediction, setPrediction] = useState(null);
+  const [predicting, setPredicting] = useState(false);
+  const [predictionError, setPredictionError] = useState("");
   const formatNumber = (value) => {
     if (value === null || value === undefined || value === "") {
       return "—";
@@ -2105,7 +2108,63 @@ function ShipmentDetail({ shipment, onBack }) {
       maximumFractionDigits: 2,
     })}`;
   };
+  const handlePredict = async () => {
+  setPredicting(true);
+  setPredictionError("");
+  setPrediction(null);
 
+  const value = (key) => Number(shipment[key] ?? 0);
+
+  const payload = {
+    shipment_id: shipment.id,
+    country: shipment.country || "",
+    "shipment mode": shipment["shipment mode"] || "",
+    "product group": shipment["product group"] || "",
+    "sub classification": shipment["sub classification"] || "",
+    vendor: shipment.vendor || "",
+    "manufacturing site": shipment["manufacturing site"] || "",
+    "line item quantity": value("line item quantity"),
+    "line item value": value("line item value"),
+    "pack price": value("pack price"),
+    "unit price": value("unit price"),
+    "weight (kilograms)": value("weight (kilograms)"),
+    "freight cost (usd)": value("freight cost (usd)"),
+    "line item insurance (usd)": value("line item insurance (usd)"),
+    scheduled_year: value("scheduled_year"),
+    scheduled_month: value("scheduled_month"),
+    scheduled_day_of_week: value("scheduled_day_of_week"),
+    freight_cost_ratio: value("freight_cost_ratio"),
+    insurance_cost_ratio: value("insurance_cost_ratio"),
+    weight_per_unit: value("weight_per_unit"),
+    transport_risk_score: value("transport_risk_score"),
+    high_value_shipment: value("high_value_shipment"),
+    shipment_complexity_score: value("shipment_complexity_score"),
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/predictions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        typeof data.detail === "string"
+          ? data.detail
+          : JSON.stringify(data.detail || data)
+      );
+    }
+
+    setPrediction(data);
+  } catch (error) {
+    setPredictionError(error.message || "Prediction failed");
+  } finally {
+    setPredicting(false);
+  }
+};
   return (
     <div>
       <PageHeading
@@ -2265,6 +2324,80 @@ function ShipmentDetail({ shipment, onBack }) {
             </div>
           </div>
         </div>
+      </div>
+            <div className="card" style={{ marginTop: "20px" }}>
+        <CardHeader
+          icon={<ShieldCheck size={18} />}
+          title="ML Risk Assessment"
+        />
+
+        <p>
+          Predict the shipment's delay risk using the XGBoost model.
+        </p>
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={handlePredict}
+          disabled={predicting}
+        >
+          {predicting ? "Predicting..." : "Predict Risk"}
+        </button>
+
+        {predictionError && (
+          <p style={{ color: "red", marginTop: "12px" }}>
+            {predictionError}
+          </p>
+        )}
+
+        {prediction?.prediction && (
+          <div style={{ marginTop: "20px" }}>
+            <h3>Prediction Result</h3>
+
+            <div className="detail-list">
+              <div>
+                <span>Delay Probability</span>
+                <strong>
+                  {(prediction.prediction.delay_probability * 100).toFixed(2)}%
+                </strong>
+              </div>
+
+              <div>
+                <span>Risk Level</span>
+                <strong>{prediction.prediction.risk_level}</strong>
+              </div>
+
+              <div>
+                <span>Prediction</span>
+                <strong>
+                  {prediction.prediction.delay_prediction === 1
+                    ? "Delay Likely"
+                    : "On-Time Likely"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Threshold</span>
+                <strong>{prediction.prediction.threshold}</strong>
+              </div>
+            </div>
+
+            <h3 style={{ marginTop: "20px" }}>
+              Why this prediction?
+            </h3>
+
+            {prediction.explanation?.top_features?.map((feature, index) => (
+              <div key={index} style={{ padding: "8px 0" }}>
+                <strong>{feature.feature}</strong>
+                {" — "}
+                {feature.direction}
+                {" ("}
+                {Number(feature.impact).toFixed(4)}
+                {")"}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
