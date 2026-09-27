@@ -2131,7 +2131,7 @@ function ShipmentDetail({ shipment, onBack }) {
     "freight cost (usd)": value("freight cost (usd)"),
     "line item insurance (usd)": value("line item insurance (usd)"),
     scheduled_year: value("scheduled_year"),
-    scheduled_month: value("scheduled_month"),
+    scheduled_month: Math.max(1, Math.min(12, value("scheduled_month") || 1)),
     scheduled_day_of_week: value("scheduled_day_of_week"),
     freight_cost_ratio: value("freight_cost_ratio"),
     insurance_cost_ratio: value("insurance_cost_ratio"),
@@ -2386,16 +2386,41 @@ function ShipmentDetail({ shipment, onBack }) {
               Why this prediction?
             </h3>
 
-            {prediction.explanation?.top_features?.map((feature, index) => (
-              <div key={index} style={{ padding: "8px 0" }}>
-                <strong>{feature.feature}</strong>
-                {" — "}
-                {feature.direction}
-                {" ("}
-                {Number(feature.impact).toFixed(4)}
-                {")"}
-              </div>
-            ))}
+            {prediction.explanation?.top_features?.length > 0 ? (
+              prediction.explanation.top_features.map((feature, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: "12px",
+                    marginBottom: "8px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <strong>{feature.feature}</strong>
+                  <div style={{ marginTop: "4px" }}>
+                    <span
+                      style={{
+                        color:
+                          feature.direction === "increases_delay_risk"
+                            ? "#dc2626"
+                            : "#16a34a",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {feature.direction === "increases_delay_risk"
+                        ? "Increases delay risk"
+                        : "Decreases delay risk"}
+                    </span>
+                    {" · Impact: "}
+                    {Number(feature.impact).toFixed(4)}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p>No SHAP explanation available for this prediction.</p>
+            )}
           </div>
         )}
       </div>
