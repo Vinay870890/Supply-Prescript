@@ -2090,6 +2090,9 @@ function ShipmentDetail({ shipment, onBack }) {
   const [prediction, setPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState("");
+  const [recommendation, setRecommendation] = useState(null);
+  const [recommending, setRecommending] = useState(false);
+  const [recommendationError, setRecommendationError] = useState("");
   const formatNumber = (value) => {
     if (value === null || value === undefined || value === "") {
       return "—";
@@ -2109,62 +2112,126 @@ function ShipmentDetail({ shipment, onBack }) {
     })}`;
   };
   const handlePredict = async () => {
-  setPredicting(true);
-  setPredictionError("");
-  setPrediction(null);
+    setPredicting(true);
+    setPredictionError("");
+    setPrediction(null);
+    setRecommendation(null);
+    setRecommendationError("");
 
-  const value = (key) => Number(shipment[key] ?? 0);
+    const value = (key) => Number(shipment[key] ?? 0);
+    const payload = {
+      shipment_id: shipment.id,
+      country: shipment.country || "",
+      "shipment mode": shipment["shipment mode"] || "",
+      "product group": shipment["product group"] || "",
+      "sub classification": shipment["sub classification"] || "",
+      vendor: shipment.vendor || "",
+      "manufacturing site": shipment["manufacturing site"] || "",
+      "line item quantity": value("line item quantity"),
+      "line item value": value("line item value"),
+      "pack price": value("pack price"),
+      "unit price": value("unit price"),
+      "weight (kilograms)": value("weight (kilograms)"),
+      "freight cost (usd)": value("freight cost (usd)"),
+      "line item insurance (usd)": value("line item insurance (usd)"),
+      scheduled_year: value("scheduled_year"),
+      scheduled_month: Math.max(1, Math.min(12, value("scheduled_month") || 1)),
+      scheduled_day_of_week: value("scheduled_day_of_week"),
+      freight_cost_ratio: value("freight_cost_ratio"),
+      insurance_cost_ratio: value("insurance_cost_ratio"),
+      weight_per_unit: value("weight_per_unit"),
+      transport_risk_score: value("transport_risk_score"),
+      high_value_shipment: value("high_value_shipment"),
+      shipment_complexity_score: value("shipment_complexity_score"),
+    };
 
-  const payload = {
-    shipment_id: shipment.id,
-    country: shipment.country || "",
-    "shipment mode": shipment["shipment mode"] || "",
-    "product group": shipment["product group"] || "",
-    "sub classification": shipment["sub classification"] || "",
-    vendor: shipment.vendor || "",
-    "manufacturing site": shipment["manufacturing site"] || "",
-    "line item quantity": value("line item quantity"),
-    "line item value": value("line item value"),
-    "pack price": value("pack price"),
-    "unit price": value("unit price"),
-    "weight (kilograms)": value("weight (kilograms)"),
-    "freight cost (usd)": value("freight cost (usd)"),
-    "line item insurance (usd)": value("line item insurance (usd)"),
-    scheduled_year: value("scheduled_year"),
-    scheduled_month: Math.max(1, Math.min(12, value("scheduled_month") || 1)),
-    scheduled_day_of_week: value("scheduled_day_of_week"),
-    freight_cost_ratio: value("freight_cost_ratio"),
-    insurance_cost_ratio: value("insurance_cost_ratio"),
-    weight_per_unit: value("weight_per_unit"),
-    transport_risk_score: value("transport_risk_score"),
-    high_value_shipment: value("high_value_shipment"),
-    shipment_complexity_score: value("shipment_complexity_score"),
+    try {
+      const response = await fetch(`${API_BASE}/predictions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : JSON.stringify(data.detail || data)
+        );
+      }
+      setPrediction(data);
+    } catch (error) {
+      setPredictionError(error.message || "Prediction failed");
+    } finally {
+      setPredicting(false);
+    }
   };
 
-  try {
-    const response = await fetch(`${API_BASE}/predictions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  const handleRecommend = async () => {
+    const predictionResult = prediction?.prediction;
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        typeof data.detail === "string"
-          ? data.detail
-          : JSON.stringify(data.detail || data)
-      );
+    if (!predictionResult) {
+      setRecommendationError("Please predict shipment risk first.");
+      return;
     }
 
-    setPrediction(data);
-  } catch (error) {
-    setPredictionError(error.message || "Prediction failed");
-  } finally {
-    setPredicting(false);
-  }
-};
+    const rawFreightCost = shipment["freight cost (usd)"];
+    const freightCost =
+      rawFreightCost === null ||
+      rawFreightCost === undefined ||
+      String(rawFreightCost).trim() === ""
+        ? null
+        : Number(rawFreightCost);
+
+    if (freightCost === null || !Number.isFinite(freightCost) || freightCost < 0) {
+      setRecommendationError(
+        "Freight cost is missing or invalid. Please update the shipment data before requesting a recommendation."
+      );
+      setRecommendation(null);
+      return;
+    }
+
+    setRecommending(true);
+    setRecommendationError("");
+    setRecommendation(null);
+    
+    const value = (key) => {
+      const result = Number(shipment[key] ?? 0);
+      return Number.isFinite(result) ? result : 0;
+    };
+    const payload = {
+      delay_probability: Number(predictionResult.delay_probability),
+      freight_cost_usd: freightCost,
+      shipment_value_usd: value("line item value"),
+      transport_risk_score: value("transport_risk_score"),
+      shipment_complexity_score: value("shipment_complexity_score"),
+      shipment_mode: String(shipment["shipment mode"] ?? "Unknown"),
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/recommendations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : JSON.stringify(data.detail || data)
+        );
+      }
+      setRecommendation(data);
+    } catch (error) {
+      setRecommendationError(
+        error.message || "Failed to generate recommendation"
+      );
+    } finally {
+      setRecommending(false);
+    }
+  };
+
   return (
     <div>
       <PageHeading
@@ -2335,15 +2402,24 @@ function ShipmentDetail({ shipment, onBack }) {
           Predict the shipment's delay risk using the XGBoost model.
         </p>
 
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={handlePredict}
-          disabled={predicting}
-        >
-          {predicting ? "Predicting..." : "Predict Risk"}
-        </button>
-
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handlePredict}
+            disabled={predicting}
+          >
+            {predicting ? "Predicting..." : "Predict Risk"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleRecommend}
+            disabled={!prediction?.prediction || recommending}
+          >
+            {recommending ? "Generating..." : "Get Recommendation"}
+          </button>
+        </div>
         {predictionError && (
           <p style={{ color: "red", marginTop: "12px" }}>
             {predictionError}
@@ -2420,6 +2496,70 @@ function ShipmentDetail({ shipment, onBack }) {
               ))
             ) : (
               <p>No SHAP explanation available for this prediction.</p>
+            )}
+          </div>
+        )}
+
+        {recommendationError && (
+          <p style={{ color: "red", marginTop: "12px" }}>
+            {recommendationError}
+          </p>
+        )}
+
+        {recommendation && (
+          <div style={{ marginTop: "24px" }}>
+            <h3>Prescriptive Recommendation</h3>
+            <div className="detail-list">
+              <div>
+                <span>Recommended Action</span>
+                <strong>{recommendation.recommended_action || "—"}</strong>
+              </div>
+              <div>
+                <span>Reason</span>
+                <strong>{recommendation.recommendation_reason || "—"}</strong>
+              </div>
+            </div>
+
+            {recommendation.alternatives?.length > 0 && (
+              <div style={{ marginTop: "16px" }}>
+                <h3>Action Alternatives</h3>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>Estimated Cost</th>
+                        <th>Expected Delay Risk</th>
+                        <th>Speed Score</th>
+                        <th>Objective Score</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recommendation.alternatives.map((alternative) => (
+                        <tr key={alternative.action}>
+                          <td><strong>{alternative.action}</strong></td>
+                          <td>{formatMoney(alternative.estimated_cost_usd)}</td>
+                          <td>
+                            {formatPercent(
+                              Number(alternative.expected_delay_risk) * 100
+                            )}
+                          </td>
+                          <td>{Number(alternative.speed_score ?? 0).toFixed(2)}</td>
+                          <td>{Number(alternative.objective_score ?? 0).toFixed(4)}</td>
+                          <td>
+                            {alternative.recommended ? (
+                              <span className="status-pill success">Recommended</span>
+                            ) : (
+                              <span className="status-pill">Alternative</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
         )}

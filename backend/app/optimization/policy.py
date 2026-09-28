@@ -27,5 +27,8 @@ class OptimizationPolicy:
     upgrade_speed_bonus: float = 0.20
     expedite_speed_bonus: float = 0.40
 
+        # Minimum predicted delay probability for intervention
+    intervention_threshold: float = 0.10
+
 
 DEFAULT_POLICY = OptimizationPolicy()

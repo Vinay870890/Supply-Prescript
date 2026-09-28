@@ -216,18 +216,27 @@ class ShipmentOptimizer:
             )
         )
 
-        # =========================================================
+                # =========================================================
         # SELECT BEST ACTION
         # =========================================================
 
-        actions.sort(
-            key=lambda action: action.objective_score
-        )
+        # Avoid unnecessary intervention for low predicted risk.
+        if delay_probability < self.policy.intervention_threshold:
+            recommended = next(
+                action for action in actions
+                if action.action == "KEEP_CURRENT"
+            )
+        else:
+            actions.sort(
+                key=lambda action: action.objective_score
+            )
+            recommended = actions[0]
 
-        # Mark the lowest-objective action as recommended.
-        actions[0].recommended = True
-
-        recommended = actions[0]
+        # Mark the selected action as recommended.
+        for action in actions:
+            action.recommended = (
+                action.action == recommended.action
+            )
 
         # =========================================================
         # BUILD EXPLANATION
