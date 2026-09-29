@@ -2086,18 +2086,42 @@ function ShipmentExplorer() {
 }
 
 
+
 function ShipmentDetail({ shipment, onBack }) {
   const [prediction, setPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState("");
+
   const [recommendation, setRecommendation] = useState(null);
   const [recommending, setRecommending] = useState(false);
   const [recommendationError, setRecommendationError] = useState("");
+
+  const [decision, setDecision] = useState(null);
+  const [savingDecision, setSavingDecision] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const [decisionMessage, setDecisionMessage] = useState("");
+
+  const [executing, setExecuting] = useState(false);
+  const [executionNotes, setExecutionNotes] = useState("");
+
+  const [actualDelayDays, setActualDelayDays] = useState(
+    String(shipment.actual_delay_days ?? 0)
+  );
+  const [actualDelayFlag, setActualDelayFlag] = useState(
+    String(shipment.delay_flag ?? 0)
+  );
+  const [actualCost, setActualCost] = useState(
+    String(shipment["freight cost (usd)"] ?? "")
+  );
+  const [outcomeNotes, setOutcomeNotes] = useState("");
+  const [recordingOutcome, setRecordingOutcome] = useState(false);
+  const [outcomeMessage, setOutcomeMessage] = useState("");
+  const [outcomeError, setOutcomeError] = useState("");
+
   const formatNumber = (value) => {
     if (value === null || value === undefined || value === "") {
       return "—";
     }
-
     return Number(value).toLocaleString();
   };
 
@@ -2105,20 +2129,36 @@ function ShipmentDetail({ shipment, onBack }) {
     if (value === null || value === undefined || value === "") {
       return "—";
     }
-
     return `$${Number(value).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
   };
+
+  const apiError = async (response) => {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        typeof data.detail === "string"
+          ? data.detail
+          : JSON.stringify(data.detail || data)
+      );
+    }
+    return data;
+  };
+
   const handlePredict = async () => {
     setPredicting(true);
     setPredictionError("");
     setPrediction(null);
     setRecommendation(null);
     setRecommendationError("");
+    setDecision(null);
+    setDecisionError("");
+    setDecisionMessage("");
 
     const value = (key) => Number(shipment[key] ?? 0);
+
     const payload = {
       shipment_id: shipment.id,
       country: shipment.country || "",
@@ -2135,7 +2175,10 @@ function ShipmentDetail({ shipment, onBack }) {
       "freight cost (usd)": value("freight cost (usd)"),
       "line item insurance (usd)": value("line item insurance (usd)"),
       scheduled_year: value("scheduled_year"),
-      scheduled_month: Math.max(1, Math.min(12, value("scheduled_month") || 1)),
+      scheduled_month: Math.max(
+        1,
+        Math.min(12, value("scheduled_month") || 1)
+      ),
       scheduled_day_of_week: value("scheduled_day_of_week"),
       freight_cost_ratio: value("freight_cost_ratio"),
       insurance_cost_ratio: value("insurance_cost_ratio"),
@@ -2151,14 +2194,7 @@ function ShipmentDetail({ shipment, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          typeof data.detail === "string"
-            ? data.detail
-            : JSON.stringify(data.detail || data)
-        );
-      }
+      const data = await apiError(response);
       setPrediction(data);
     } catch (error) {
       setPredictionError(error.message || "Prediction failed");
@@ -2183,9 +2219,13 @@ function ShipmentDetail({ shipment, onBack }) {
         ? null
         : Number(rawFreightCost);
 
-    if (freightCost === null || !Number.isFinite(freightCost) || freightCost < 0) {
+    if (
+      freightCost === null ||
+      !Number.isFinite(freightCost) ||
+      freightCost < 0
+    ) {
       setRecommendationError(
-        "Freight cost is missing or invalid. Please update the shipment data before requesting a recommendation."
+        "Freight cost is missing or invalid. Please update the shipment data."
       );
       setRecommendation(null);
       return;
@@ -2194,11 +2234,15 @@ function ShipmentDetail({ shipment, onBack }) {
     setRecommending(true);
     setRecommendationError("");
     setRecommendation(null);
-    
+    setDecision(null);
+    setDecisionError("");
+    setDecisionMessage("");
+
     const value = (key) => {
       const result = Number(shipment[key] ?? 0);
       return Number.isFinite(result) ? result : 0;
     };
+
     const payload = {
       delay_probability: Number(predictionResult.delay_probability),
       freight_cost_usd: freightCost,
@@ -2214,14 +2258,7 @@ function ShipmentDetail({ shipment, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          typeof data.detail === "string"
-            ? data.detail
-            : JSON.stringify(data.detail || data)
-        );
-      }
+      const data = await apiError(response);
       setRecommendation(data);
     } catch (error) {
       setRecommendationError(
@@ -2230,6 +2267,188 @@ function ShipmentDetail({ shipment, onBack }) {
     } finally {
       setRecommending(false);
     }
+  };
+
+  const handleSaveDecision = async () => {
+    if (!prediction?.prediction || !recommendation) {
+      setDecisionError("Generate prediction and recommendation first.");
+      return;
+    }
+
+    const recommendedOption = recommendation.alternatives?.find(
+      (item) => item.action === recommendation.recommended_action
+    );
+
+    if (!recommendedOption) {
+      setDecisionError(
+        "Recommended action details are missing. Please generate the recommendation again."
+      );
+      return;
+    }
+
+    setSavingDecision(true);
+    setDecisionError("");
+    setDecisionMessage("");
+
+    const payload = {
+      shipment_id: Number(shipment.id),
+      predicted_delay_probability: Number(
+        prediction.prediction.delay_probability
+      ),
+      predicted_risk_level: String(
+        prediction.prediction.risk_level || "UNKNOWN"
+      ),
+      recommended_action: recommendation.recommended_action,
+      selected_action: recommendation.recommended_action,
+      recommendation_score: Number(
+        recommendedOption.objective_score
+      ),
+      estimated_cost_usd: Number(
+        recommendedOption.estimated_cost_usd
+      ),
+      expected_delay_risk: Number(
+        recommendedOption.expected_delay_risk
+      ),
+      notes: "Decision created from Shipment Detail UI.",
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/decisions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await apiError(response);
+      setDecision(data);
+      setDecisionMessage(`Decision #${data.id} saved successfully.`);
+    } catch (error) {
+      setDecisionError(error.message || "Failed to save decision.");
+    } finally {
+      setSavingDecision(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!decision?.id) return;
+
+    setDecisionError("");
+    setDecisionMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/decisions/${decision.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            decision_status: "APPROVED",
+            notes: "Approved from Shipment Detail UI.",
+          }),
+        }
+      );
+      const data = await apiError(response);
+      setDecision(data);
+      setDecisionMessage("Decision approved successfully.");
+    } catch (error) {
+      setDecisionError(error.message || "Approval failed.");
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!decision?.id) return;
+
+    setExecuting(true);
+    setDecisionError("");
+    setDecisionMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/decisions/${decision.id}/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            execution_notes: executionNotes.trim() || null,
+          }),
+        }
+      );
+      const data = await apiError(response);
+      setDecision((previous) => ({ ...previous, ...data }));
+      setDecisionMessage("Decision executed successfully.");
+    } catch (error) {
+      setDecisionError(error.message || "Execution failed.");
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleRecordOutcome = async (event) => {
+    event.preventDefault();
+
+    if (!decision?.id) {
+      setOutcomeError("Save a decision first.");
+      return;
+    }
+
+    if (decision.decision_status !== "EXECUTED") {
+      setOutcomeError("Execute the decision before recording its outcome.");
+      return;
+    }
+
+    const delayDays = Number(actualDelayDays);
+    const cost = Number(actualCost);
+
+    if (
+      !Number.isInteger(delayDays) ||
+      delayDays < 0 ||
+      !Number.isFinite(cost) ||
+      cost < 0 ||
+      ![0, 1].includes(Number(actualDelayFlag))
+    ) {
+      setOutcomeError("Enter valid delay days, delay flag, and cost.");
+      return;
+    }
+
+    setRecordingOutcome(true);
+    setOutcomeError("");
+    setOutcomeMessage("");
+
+    const payload = {
+      decision_id: Number(decision.id),
+      shipment_id: Number(shipment.id),
+      actual_delay_days: delayDays,
+      actual_delay_flag: Number(actualDelayFlag),
+      actual_cost_usd: cost,
+      outcome_status: "COMPLETED",
+      outcome_notes: outcomeNotes.trim() || null,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/outcomes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await apiError(response);
+      setOutcomeMessage(`Outcome #${data.id} recorded successfully.`);
+      setDecision((previous) => ({
+        ...previous,
+        decision_status: "OUTCOME_RECORDED",
+      }));
+    } catch (error) {
+      setOutcomeError(error.message || "Failed to record outcome.");
+    } finally {
+      setRecordingOutcome(false);
+    }
+  };
+
+  const statusClass = (status) => {
+    if (status === "EXECUTED" || status === "OUTCOME_RECORDED") {
+      return "success";
+    }
+    if (status === "APPROVED") return "success";
+    if (status === "REJECTED") return "danger";
+    return "";
   };
 
   return (
@@ -2254,43 +2473,13 @@ function ShipmentDetail({ shipment, onBack }) {
             icon={<Truck size={18} />}
             title="Shipment Overview"
           />
-
           <div className="detail-list">
-            <div>
-              <span>Shipment ID</span>
-              <strong>{shipment.id}</strong>
-            </div>
-
-            <div>
-              <span>Country</span>
-              <strong>{shipment.country || "—"}</strong>
-            </div>
-
-            <div>
-              <span>Shipment Mode</span>
-              <strong>
-                {shipment["shipment mode"] || "—"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Product Group</span>
-              <strong>
-                {shipment["product group"] || "—"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Vendor</span>
-              <strong>{shipment.vendor || "—"}</strong>
-            </div>
-
-            <div>
-              <span>Manufacturing Site</span>
-              <strong>
-                {shipment["manufacturing site"] || "—"}
-              </strong>
-            </div>
+            <div><span>Shipment ID</span><strong>{shipment.id}</strong></div>
+            <div><span>Country</span><strong>{shipment.country || "—"}</strong></div>
+            <div><span>Shipment Mode</span><strong>{shipment["shipment mode"] || "—"}</strong></div>
+            <div><span>Product Group</span><strong>{shipment["product group"] || "—"}</strong></div>
+            <div><span>Vendor</span><strong>{shipment.vendor || "—"}</strong></div>
+            <div><span>Manufacturing Site</span><strong>{shipment["manufacturing site"] || "—"}</strong></div>
           </div>
         </div>
 
@@ -2299,44 +2488,12 @@ function ShipmentDetail({ shipment, onBack }) {
             icon={<CircleDollarSign size={18} />}
             title="Financial Profile"
           />
-
           <div className="detail-list">
-            <div>
-              <span>Line Item Value</span>
-              <strong>
-                {formatMoney(shipment["line item value"])}
-              </strong>
-            </div>
-
-            <div>
-              <span>Line Item Quantity</span>
-              <strong>
-                {formatNumber(shipment["line item quantity"])}
-              </strong>
-            </div>
-
-            <div>
-              <span>Freight Cost</span>
-              <strong>
-                {formatMoney(shipment["freight cost (usd)"])}
-              </strong>
-            </div>
-
-            <div>
-              <span>Insurance</span>
-              <strong>
-                {formatMoney(
-                  shipment["line item insurance (usd)"]
-                )}
-              </strong>
-            </div>
-
-            <div>
-              <span>Weight</span>
-              <strong>
-                {formatNumber(shipment["weight (kilograms)"])} kg
-              </strong>
-            </div>
+            <div><span>Line Item Value</span><strong>{formatMoney(shipment["line item value"])}</strong></div>
+            <div><span>Line Item Quantity</span><strong>{formatNumber(shipment["line item quantity"])}</strong></div>
+            <div><span>Freight Cost</span><strong>{formatMoney(shipment["freight cost (usd)"])}</strong></div>
+            <div><span>Insurance</span><strong>{formatMoney(shipment["line item insurance (usd)"])}</strong></div>
+            <div><span>Weight</span><strong>{formatNumber(shipment["weight (kilograms)"])} kg</strong></div>
           </div>
         </div>
 
@@ -2345,62 +2502,22 @@ function ShipmentDetail({ shipment, onBack }) {
             icon={<ShieldCheck size={18} />}
             title="Risk Profile"
           />
-
           <div className="detail-list">
-            <div>
-              <span>Transport Risk Score</span>
-              <strong>
-                {Number(
-                  shipment.transport_risk_score || 0
-                ).toFixed(2)}
-              </strong>
-            </div>
-
-            <div>
-              <span>Complexity Score</span>
-              <strong>
-                {Number(
-                  shipment.shipment_complexity_score || 0
-                ).toFixed(2)}
-              </strong>
-            </div>
-
-            <div>
-              <span>High Value Shipment</span>
-              <strong>
-                {shipment.high_value_shipment === 1
-                  ? "Yes"
-                  : "No"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Actual Delay</span>
-              <strong>
-                {shipment.actual_delay_days ?? 0} days
-              </strong>
-            </div>
-
-            <div>
-              <span>Actual Outcome</span>
-              <strong>
-                {shipment.delay_flag === 1
-                  ? "Delayed"
-                  : "On Time"}
-              </strong>
-            </div>
+            <div><span>Transport Risk Score</span><strong>{Number(shipment.transport_risk_score || 0).toFixed(2)}</strong></div>
+            <div><span>Complexity Score</span><strong>{Number(shipment.shipment_complexity_score || 0).toFixed(2)}</strong></div>
+            <div><span>High Value Shipment</span><strong>{shipment.high_value_shipment === 1 ? "Yes" : "No"}</strong></div>
+            <div><span>Actual Delay</span><strong>{shipment.actual_delay_days ?? 0} days</strong></div>
+            <div><span>Actual Outcome</span><strong>{shipment.delay_flag === 1 ? "Delayed" : "On Time"}</strong></div>
           </div>
         </div>
       </div>
-            <div className="card" style={{ marginTop: "20px" }}>
+
+      <div className="card" style={{ marginTop: "20px" }}>
         <CardHeader
           icon={<ShieldCheck size={18} />}
           title="ML Risk Assessment"
         />
-
-        <p>
-          Predict the shipment's delay risk using the XGBoost model.
-        </p>
+        <p>Predict the shipment's delay risk using the XGBoost model.</p>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button
@@ -2420,48 +2537,20 @@ function ShipmentDetail({ shipment, onBack }) {
             {recommending ? "Generating..." : "Get Recommendation"}
           </button>
         </div>
-        {predictionError && (
-          <p style={{ color: "red", marginTop: "12px" }}>
-            {predictionError}
-          </p>
-        )}
+
+        {predictionError && <p style={{ color: "red" }}>{predictionError}</p>}
 
         {prediction?.prediction && (
           <div style={{ marginTop: "20px" }}>
             <h3>Prediction Result</h3>
-
             <div className="detail-list">
-              <div>
-                <span>Delay Probability</span>
-                <strong>
-                  {(prediction.prediction.delay_probability * 100).toFixed(2)}%
-                </strong>
-              </div>
-
-              <div>
-                <span>Risk Level</span>
-                <strong>{prediction.prediction.risk_level}</strong>
-              </div>
-
-              <div>
-                <span>Prediction</span>
-                <strong>
-                  {prediction.prediction.delay_prediction === 1
-                    ? "Delay Likely"
-                    : "On-Time Likely"}
-                </strong>
-              </div>
-
-              <div>
-                <span>Threshold</span>
-                <strong>{prediction.prediction.threshold}</strong>
-              </div>
+              <div><span>Delay Probability</span><strong>{(prediction.prediction.delay_probability * 100).toFixed(2)}%</strong></div>
+              <div><span>Risk Level</span><strong>{prediction.prediction.risk_level}</strong></div>
+              <div><span>Prediction</span><strong>{prediction.prediction.delay_prediction === 1 ? "Delay Likely" : "On-Time Likely"}</strong></div>
+              <div><span>Threshold</span><strong>{prediction.prediction.threshold}</strong></div>
             </div>
 
-            <h3 style={{ marginTop: "20px" }}>
-              Why this prediction?
-            </h3>
-
+            <h3 style={{ marginTop: "20px" }}>Why this prediction?</h3>
             {prediction.explanation?.top_features?.length > 0 ? (
               prediction.explanation.top_features.map((feature, index) => (
                 <div
@@ -2471,20 +2560,15 @@ function ShipmentDetail({ shipment, onBack }) {
                     marginBottom: "8px",
                     border: "1px solid #ddd",
                     borderRadius: "8px",
-                    background: "#f8fafc",
+                    background: "var(--card-bg, #f8fafc)",
                   }}
                 >
                   <strong>{feature.feature}</strong>
                   <div style={{ marginTop: "4px" }}>
-                    <span
-                      style={{
-                        color:
-                          feature.direction === "increases_delay_risk"
-                            ? "#dc2626"
-                            : "#16a34a",
-                        fontWeight: 600,
-                      }}
-                    >
+                    <span style={{
+                      color: feature.direction === "increases_delay_risk" ? "#dc2626" : "#16a34a",
+                      fontWeight: 600,
+                    }}>
                       {feature.direction === "increases_delay_risk"
                         ? "Increases delay risk"
                         : "Decreases delay risk"}
@@ -2500,24 +2584,14 @@ function ShipmentDetail({ shipment, onBack }) {
           </div>
         )}
 
-        {recommendationError && (
-          <p style={{ color: "red", marginTop: "12px" }}>
-            {recommendationError}
-          </p>
-        )}
+        {recommendationError && <p style={{ color: "red" }}>{recommendationError}</p>}
 
         {recommendation && (
           <div style={{ marginTop: "24px" }}>
             <h3>Prescriptive Recommendation</h3>
             <div className="detail-list">
-              <div>
-                <span>Recommended Action</span>
-                <strong>{recommendation.recommended_action || "—"}</strong>
-              </div>
-              <div>
-                <span>Reason</span>
-                <strong>{recommendation.recommendation_reason || "—"}</strong>
-              </div>
+              <div><span>Recommended Action</span><strong>{recommendation.recommended_action || "—"}</strong></div>
+              <div><span>Reason</span><strong>{recommendation.recommendation_reason || "—"}</strong></div>
             </div>
 
             {recommendation.alternatives?.length > 0 && (
@@ -2540,19 +2614,13 @@ function ShipmentDetail({ shipment, onBack }) {
                         <tr key={alternative.action}>
                           <td><strong>{alternative.action}</strong></td>
                           <td>{formatMoney(alternative.estimated_cost_usd)}</td>
-                          <td>
-                            {formatPercent(
-                              Number(alternative.expected_delay_risk) * 100
-                            )}
-                          </td>
+                          <td>{formatPercent(Number(alternative.expected_delay_risk) * 100)}</td>
                           <td>{Number(alternative.speed_score ?? 0).toFixed(2)}</td>
                           <td>{Number(alternative.objective_score ?? 0).toFixed(4)}</td>
                           <td>
-                            {alternative.recommended ? (
-                              <span className="status-pill success">Recommended</span>
-                            ) : (
-                              <span className="status-pill">Alternative</span>
-                            )}
+                            {alternative.recommended
+                              ? <span className="status-pill success">Recommended</span>
+                              : <span className="status-pill">Alternative</span>}
                           </td>
                         </tr>
                       ))}
@@ -2561,6 +2629,134 @@ function ShipmentDetail({ shipment, onBack }) {
                 </div>
               </div>
             )}
+
+            <div style={{ marginTop: "18px" }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleSaveDecision}
+                disabled={savingDecision || !!decision}
+              >
+                {savingDecision ? "Saving..." : decision ? `Decision #${decision.id} Saved` : "Save Decision"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {decisionError && <p style={{ color: "red", marginTop: "12px" }}>{decisionError}</p>}
+        {decisionMessage && <p style={{ color: "green", marginTop: "12px" }}>{decisionMessage}</p>}
+
+        {decision && (
+          <div className="card" style={{ marginTop: "24px" }}>
+            <CardHeader
+              icon={<ShieldCheck size={18} />}
+              title="Decision Workflow"
+            />
+            <div className="detail-list">
+              <div><span>Decision ID</span><strong>#{decision.id}</strong></div>
+              <div><span>Selected Action</span><strong>{decision.selected_action}</strong></div>
+              <div><span>Status</span><strong><span className={`status-pill ${statusClass(decision.decision_status)}`}>{decision.decision_status}</span></strong></div>
+            </div>
+
+            {decision.decision_status === "SELECTED" && (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleApprove}
+                style={{ marginTop: "16px" }}
+              >
+                Approve Decision
+              </button>
+            )}
+
+            {decision.decision_status === "APPROVED" && (
+              <div style={{ marginTop: "16px" }}>
+                <label>Execution Notes</label>
+                <textarea
+                  value={executionNotes}
+                  onChange={(event) => setExecutionNotes(event.target.value)}
+                  placeholder="Enter execution notes..."
+                  rows={3}
+                  style={{ display: "block", width: "100%", margin: "8px 0 12px" }}
+                />
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={handleExecute}
+                  disabled={executing}
+                >
+                  {executing ? "Executing..." : "Execute Decision"}
+                </button>
+              </div>
+            )}
+
+            {decision.decision_status === "EXECUTED" && (
+              <form onSubmit={handleRecordOutcome} style={{ marginTop: "20px" }}>
+                <h3>Record Actual Outcome</h3>
+                <p>Enter the actual shipment result after execution.</p>
+
+                <label>Actual Delay (days)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={actualDelayDays}
+                  onChange={(event) => setActualDelayDays(event.target.value)}
+                  required
+                  style={{ display: "block", width: "100%", margin: "6px 0 12px" }}
+                />
+
+                <label>Was the shipment delayed?</label>
+                <select
+                  value={actualDelayFlag}
+                  onChange={(event) => setActualDelayFlag(event.target.value)}
+                  style={{ display: "block", width: "100%", margin: "6px 0 12px" }}
+                >
+                  <option value="0">No — On time</option>
+                  <option value="1">Yes — Delayed</option>
+                </select>
+
+                <label>Actual Cost (USD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={actualCost}
+                  onChange={(event) => setActualCost(event.target.value)}
+                  required
+                  style={{ display: "block", width: "100%", margin: "6px 0 12px" }}
+                />
+
+                <label>Outcome Notes</label>
+                <textarea
+                  value={outcomeNotes}
+                  onChange={(event) => setOutcomeNotes(event.target.value)}
+                  placeholder="Describe the actual outcome..."
+                  rows={3}
+                  style={{ display: "block", width: "100%", margin: "6px 0 12px" }}
+                />
+
+                {outcomeError && <p style={{ color: "red" }}>{outcomeError}</p>}
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={recordingOutcome}
+                >
+                  {recordingOutcome ? "Recording..." : "Record Outcome"}
+                </button>
+              </form>
+            )}
+
+            {decision.decision_status === "OUTCOME_RECORDED" && (
+              <p style={{ color: "green", marginTop: "16px" }}>
+                Outcome has been recorded successfully.
+              </p>
+            )}
+
+            {outcomeError && decision.decision_status !== "EXECUTED" && (
+              <p style={{ color: "red" }}>{outcomeError}</p>
+            )}
+            {outcomeMessage && <p style={{ color: "green" }}>{outcomeMessage}</p>}
           </div>
         )}
       </div>

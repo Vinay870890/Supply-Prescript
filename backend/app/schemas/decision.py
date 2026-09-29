@@ -47,3 +47,7 @@ class DecisionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class DecisionUpdateRequest(BaseModel):
+    selected_action: str | None = None
+    decision_status: str | None = None
+    notes: str | None = None
