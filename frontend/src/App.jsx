@@ -955,33 +955,36 @@ function AnalyticsPage({
         </ChartPanel>
       </section>
 
+      
       <section className="analytics-stat-grid">
         <AnalyticsStat
           label="Prediction Accuracy"
-          value={formatPercent(
-            summary?.prediction_accuracy
-          )}
+          value={formatPercent(summary?.prediction_accuracy)}
         />
 
         <AnalyticsStat
           label="Decision Success"
-          value={formatPercent(
-            summary?.decision_success_rate
-          )}
+          value={formatPercent(summary?.decision_success_rate)}
         />
 
         <AnalyticsStat
           label="Average ROI"
-          value={formatPercent(
-            summary?.average_roi_percent
-          )}
+          value={formatPercent(summary?.average_roi_percent)}
         />
 
         <AnalyticsStat
           label="Estimated Savings"
-          value={formatCurrency(
-            summary?.total_estimated_savings_usd
-          )}
+          value={formatCurrency(summary?.total_estimated_savings_usd)}
+        />
+
+        <AnalyticsStat
+          label="Average Cost Variance"
+          value={formatCurrency(summary?.average_cost_variance_usd)}
+        />
+
+        <AnalyticsStat
+          label="Outcomes Evaluated"
+          value={summary?.outcomes_recorded || 0}
         />
       </section>
 
@@ -1456,7 +1459,7 @@ function OutcomeAccuracyChart({ history }) {
     predicted: Number(
       (Number(item.predicted_delay_probability) * 100).toFixed(2)
     ),
-    actual: item.actual_delay_flag === 1 ? 1 : 0,
+    actual: item.actual_delay_flag === 1 ? 100 : 0,
     actualLabel:
       item.actual_delay_flag === 1 ? "DELAYED" : "ON_TIME",
   }));
@@ -1496,7 +1499,7 @@ function OutcomeAccuracyChart({ history }) {
                 }
 
                 return [
-                  value === 1 ? "DELAYED" : "ON TIME",
+                  value === 100 ? "DELAYED" : "ON TIME",
                   "Actual Outcome",
                 ];
               }}
